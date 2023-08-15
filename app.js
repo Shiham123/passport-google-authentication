@@ -8,9 +8,6 @@ const app = express();
 require('./config/database');
 const user = require('./Model/user.model');
 
-const bcrypt = require('bcrypt');
-const saltRounds = 10;
-
 const passport = require('passport');
 const session = require('express-session');
 const mongoStore = require('connect-mongo');
@@ -50,35 +47,6 @@ app.get('/', (request, response) => {
   response.status(200).render('index');
 });
 
-// ! get and post method for register route
-
-app.get('/register', (request, response) => {
-  response.status(200).render('register');
-});
-
-app.post('/register', async (request, response) => {
-  try {
-    const { username: usernameBody, password: passwordBody } = request.body;
-
-    const existingUser = await user.findOne({
-      username: usernameBody,
-    });
-    if (existingUser) return response.status(400).send('user is already exits');
-
-    bcrypt.hash(passwordBody, saltRounds, async (error, hash) => {
-      const newUser = new user({
-        username: usernameBody,
-        password: hash,
-      });
-
-      await newUser.save();
-      response.status(201).redirect('/login');
-    });
-  } catch (error) {
-    response.status(500).send('post not found');
-  }
-});
-
 // ! get method and post method for login route
 
 const checkLoggedIn = (request, response, next) => {
@@ -92,12 +60,20 @@ app.get('/login', checkLoggedIn, (request, response) => {
   response.status(200).render('login');
 });
 
-app.post(
-  '/login',
-  passport.authenticate('local', {
+app.get(
+  '/auth/google',
+  passport.authenticate('google', { scope: ['profile'] })
+);
+
+app.get(
+  '/auth/google/callback',
+  passport.authenticate('google', {
     failureRedirect: '/login',
     successRedirect: '/profile',
-  })
+  }),
+  function (req, res) {
+    res.redirect('/');
+  }
 );
 
 // ! profile route
@@ -108,7 +84,7 @@ const checkProfileAuthenticated = (request, response, next) => {
 };
 
 app.get('/profile', checkProfileAuthenticated, (request, response) => {
-  response.render('profile');
+  response.render('profile', { username: request.user.username });
 });
 
 // ! logout route
